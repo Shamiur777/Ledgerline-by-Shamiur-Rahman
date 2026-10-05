@@ -11,6 +11,8 @@ type Props = {
   next?: string;
 };
 
+const withNext = (path: string, next?: string) => (next ? `${path}?next=${encodeURIComponent(next)}` : path);
+
 export function AuthForm({ mode, action, next }: Props) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const isLogin = mode === "login";
@@ -34,9 +36,9 @@ export function AuthForm({ mode, action, next }: Props) {
       </Button>
       <p className="text-center text-sm text-muted">
         {isLogin ? (
-          <>New here? <Link href="/signup" className="font-medium text-brand underline">Create an account</Link></>
+          <>New here? <Link href={withNext("/signup", next)} className="font-medium text-brand underline">Create an account</Link></>
         ) : (
-          <>Already have an account? <Link href="/login" className="font-medium text-brand underline">Sign in</Link></>
+          <>Already have an account? <Link href={withNext("/login", next)} className="font-medium text-brand underline">Sign in</Link></>
         )}
       </p>
     </form>

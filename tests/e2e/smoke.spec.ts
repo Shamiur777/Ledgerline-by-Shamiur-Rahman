@@ -61,3 +61,47 @@ test("the read-only demo viewer can look but not touch", async ({ page }) => {
   await page.goto("/northwind-studio/transactions/new");
   await expect(page).toHaveURL(/\/northwind-studio\/dashboard/);
 });
+
+test("an admin can invite a brand-new person by link; the link works once and grants only the invited role", async ({ page, browser }) => {
+  // Owner creates the invitation
+  await page.goto("/login");
+  await page.getByLabel("Email").fill("owner@ledgerline.dev");
+  await page.getByLabel("Password").fill("ledgerline-demo");
+  await page.getByRole("button", { name: "Sign in" }).click();
+  await expect(page).toHaveURL(/\/northwind-studio\/dashboard/); // wait for the session before navigating on
+  await page.goto("/northwind-studio/members");
+
+  const inviteeEmail = `invitee-${stamp}@example.test`;
+  const invitePassword = `pw-${stamp}-Qx7!`;
+  // Scope to the invite form: existing members' role dropdowns share the "Role" label.
+  const inviteForm = page.locator("form", { has: page.getByRole("button", { name: "Create invite link" }) });
+  await inviteForm.getByLabel("Email").fill(inviteeEmail);
+  await inviteForm.getByLabel("Role").selectOption("viewer");
+  await inviteForm.getByRole("button", { name: "Create invite link" }).click();
+  const note = await page.getByText(/\/invite\//).first().textContent();
+  const link = note!.match(/https?:\/\/\S+\/invite\/[0-9a-f]{64}/)![0];
+
+  // A stranger with no account follows the link: login -> signup -> back to the invite -> accept
+  const ctx = await browser.newContext();
+  const guest = await ctx.newPage();
+  await guest.goto(link);
+  await expect(guest).toHaveURL(/\/login\?next=/);
+  await guest.getByRole("link", { name: "Create an account" }).click();
+  await guest.getByLabel("Full name").fill("Ivy Invitee");
+  await guest.getByLabel("Email").fill(inviteeEmail);
+  await guest.getByLabel("Password").fill(invitePassword);
+  await guest.getByRole("button", { name: "Create account" }).click();
+  await expect(guest.getByRole("heading", { name: "Join Northwind Studio" })).toBeVisible();
+  await guest.getByRole("button", { name: "Accept invitation" }).click();
+  await expect(guest).toHaveURL(/\/northwind-studio\/dashboard/);
+
+  // They got exactly the invited role: read-only
+  await guest.getByRole("link", { name: "Transactions" }).click();
+  await expect(guest.getByRole("link", { name: "New transaction" })).toHaveCount(0);
+  await expect(guest.getByRole("link", { name: "Members" })).toHaveCount(0);
+
+  // The link is single-use
+  await guest.goto(link);
+  await expect(guest.getByRole("heading", { name: "Invitation not valid" })).toBeVisible();
+  await ctx.close();
+});

@@ -26,6 +26,9 @@ insert into ids select 'org', create_organization('Rules Co', 'USD', 1, true);
 insert into ids select 'org2', create_organization('Rules Co', 'USD', 1, true);
 select isnt((select slug from organizations where id = pg_temp.id('org')), (select slug from organizations where id = pg_temp.id('org2')), 'same-named companies get distinct slugs');
 
+insert into ids select 'reserved', create_organization('Login');
+select isnt((select slug from organizations where id = pg_temp.id('reserved')), 'login', 'a company cannot take a slug that shadows a route');
+
 select add_member_by_email(pg_temp.id('org'), 'dan@rules.dev', 'accountant');
 select add_member_by_email(pg_temp.id('org'), 'eve@rules.dev', 'approver');
 insert into ids select 'main', id from bank_accounts where org_id = pg_temp.id('org') and name = 'Main Account';

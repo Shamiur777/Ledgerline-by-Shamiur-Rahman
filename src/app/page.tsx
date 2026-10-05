@@ -45,7 +45,7 @@ export default function Home() {
       </section>
 
       <footer className="border-t border-line py-8 text-sm text-muted">
-        Built by Shamiur Rahman as a showcase of a production-minded, multi-tenant rebuild of a real internal accounting tool.{" "}
+        A multi-tenant rebuild of an internal single-company accounting tool. Built by Shamiur Rahman.{" "}
         <Link className="underline" href="https://github.com/Shamiur777/Ledgerline-by-Shamiur-Rahman">Source on GitHub</Link>
       </footer>
     </div>

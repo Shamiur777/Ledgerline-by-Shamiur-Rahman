@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { safeRedirect } from "@/lib/redirect";
 import { createClient } from "@/lib/supabase/server";
 
 export type AuthState = { error?: string } | undefined;
@@ -11,9 +12,7 @@ const credentials = z.object({
   password: z.string().min(8, "Password must be at least 8 characters"),
 });
 
-// Only allow same-site relative redirects after login (prevents open-redirect abuse).
-const safeNext = (next: FormDataEntryValue | null) =>
-  typeof next === "string" && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+const safeNext = (next: FormDataEntryValue | null) => safeRedirect(next, "/dashboard");
 
 export async function login(_: AuthState, form: FormData): Promise<AuthState> {
   const parsed = credentials.safeParse({ email: form.get("email"), password: form.get("password") });
@@ -37,7 +36,8 @@ export async function signup(_: AuthState, form: FormData): Promise<AuthState> {
   });
   if (error) return { error: error.message };
   if (!data.session) return { error: "Check your inbox to confirm your email, then sign in." };
-  redirect("/onboarding");
+  // Invitees come back to their invite link; everyone else sets up a company.
+  redirect(safeRedirect(form.get("next"), "/onboarding"));
 }
 
 export async function signOut() {

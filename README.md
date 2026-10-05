@@ -15,7 +15,7 @@
 | **Approvals that can't be bypassed** | Payments are requested, then approved by *someone else* (four-eyes rule). Approval runs as one atomic Postgres function that re-checks role, status and self-approval. |
 | **Money-safe** | `numeric(15,2)` in the database; exact integer minor-unit arithmetic in TypeScript. No floats. Overpaying a bill or salary is blocked by a row-locking trigger, so two concurrent payments can't both slip under the limit. |
 | **Audit trail by the database** | Triggers write an append-only audit log (before/after) for every ledger change. Clients can't forge or delete entries. |
-| **Roles** | `viewer < accountant < approver < admin < owner`, enforced by RLS and mirrored in the UI. |
+| **Roles & invitations** | `viewer < accountant < approver < admin < owner`, enforced by RLS and mirrored in the UI. Invite links are single-use, expire, are bound to the invited email, and only a hash is stored. |
 | **Reports + exports** | P&L, cash flow, balance sheet → Excel (real numeric cells), PDF, CSV (with spreadsheet-formula-injection protection). |
 | **Per-company currency & fiscal year** | Formatting via `Intl`, fiscal-year logic unit-tested including leap years. |
 
@@ -56,9 +56,9 @@ Design choices worth calling out:
 
 | Layer | What | Count |
 |---|---|---|
-| Database (pgTAP) | Tenant isolation across every table, role ladder, cross-tenant references, audit immutability, approvals, four-eyes, overpayment (insert/update/restore), soft-delete balances, transfers, payroll | **52 assertions** |
-| Unit (Vitest) | Money math, fiscal-year ranges, report builders, CSV parser/validator, CSV-injection guard, real Excel + PDF generation | **29 tests** |
-| End-to-end (Playwright) | Sign up → onboard → record transaction → see it on dashboard → export; second tenant gets 404s; read-only viewer is bounced from write/admin routes | **2 flows** |
+| Database (pgTAP) | Tenant isolation across every table, role ladder, cross-tenant references, audit immutability, approvals, four-eyes, overpayment (insert/update/restore), soft-delete balances, transfers, payroll, invitations (wrong email, replay, expiry, forgery), reserved URL slugs | **77 assertions** |
+| Unit (Vitest) | Money math, fiscal-year ranges, report builders, CSV parser/validator, CSV-injection guard, open-redirect guard, real Excel + PDF generation | **39 tests** |
+| End-to-end (Playwright) | Sign up → onboard → record transaction → see it on dashboard → export; second tenant gets 404s; read-only viewer is bounced from write/admin routes; a brand-new person joins via an invite link, once | **3 flows** |
 
 CI (`.github/workflows/ci.yml`) runs all of it, including a real local Supabase, on every push.
 
@@ -101,10 +101,10 @@ npm run screenshots      # regenerate README images
 
 ## Trade-offs and what I'd do next
 
-Honest limits of a v1 showcase:
+Honest limits of this first version:
 
 - **Single-entry bookkeeping.** This is a cash-and-payables tracker, not a double-entry general ledger. A real accounting product would model journal entries and a chart of accounts; the balance sheet here is deliberately simplified (cash, payables, salaries payable, derived equity).
-- **Members must already have an account.** Adding by email works for existing users; a production version needs email invitations with expiring tokens.
+- **Invites are links, not emails.** Admins get a single-use, 7-day, email-bound link (only its hash is stored). Delivering it by email needs an SMTP/Resend integration, which I left out.
 - **No bank feeds or invoicing.** CSV import covers migration; Plaid-style feeds and customer invoicing are the obvious next integrations.
 - **Rate limiting and CSP.** Basic security headers are set; per-IP rate limiting and a strict Content-Security-Policy are next, alongside Supabase's auth rate limits.
 - **Generated DB types.** Queries use light hand-written row types; `supabase gen types` would remove them.

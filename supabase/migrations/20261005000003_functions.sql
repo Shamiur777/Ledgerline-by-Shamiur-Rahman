@@ -17,7 +17,9 @@ begin
   v_base := trim(both '-' from lower(regexp_replace(trim(p_name), '[^a-zA-Z0-9]+', '-', 'g')));
   if v_base = '' then v_base := 'org'; end if;
   v_slug := v_base;
-  while exists (select 1 from organizations where slug = v_slug) loop
+  -- Slugs become top-level URL segments, so they must never shadow a real route.
+  while exists (select 1 from organizations where slug = v_slug)
+     or v_slug in ('login', 'signup', 'onboarding', 'dashboard', 'invite', 'api', 'auth', 'settings', 'admin', 'static', '_next') loop
     v_slug := v_base || '-' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 5);
   end loop;
 

@@ -27,7 +27,7 @@ export function ActionForm({
     <form action={formAction} className={className ?? "space-y-3"}>
       {children}
       <ErrorNote message={state?.error} />
-      {state?.ok && !state.error && <p className="text-sm text-income">{state.ok}</p>}
+      {state?.ok && !state.error && <p className="break-all text-sm text-income">{state.ok}</p>}
       <Button type="submit" variant={variant} disabled={pending}>
         {pending ? "Saving…" : submitLabel}
       </Button>
