@@ -7,7 +7,7 @@ import { requireRole } from "@/lib/auth";
 import { createClient } from "@/lib/supabase/server";
 import { dbMessage, firstError, uuid } from "@/lib/validation";
 
-export async function approve(slug: string, id: string, _: ActionResult): Promise<ActionResult> {
+export async function approve(slug: string, id: string): Promise<ActionResult> {
   await requireRole(slug, "approver");
   uuid.parse(id);
   const supabase = await createClient();

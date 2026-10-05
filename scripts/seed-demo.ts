@@ -126,9 +126,12 @@ async function main() {
     const d = (n: number) => day(y, m, Math.min(n, lastDay));
     const growth = 1 + (11 - back) * 0.03; // gentle upward trend
 
-    for (let i = 0; i < between(4, 6); i++)
+    const invoiceCount = between(4, 6);
+    for (let i = 0; i < invoiceCount; i++)
       t("income", Math.round(between(450_000, 1_400_000) * growth), d(between(1, 28)), operating, pick(["Sales", "Services"]), `Project invoice — ${pick(clients)}`, `INV-${y}${String(m + 1).padStart(2, "0")}-${i + 1}`);
     t("income", between(40_000, 90_000), d(28), savings, "Interest", "Monthly interest");
+    // Months before the three detailed payroll runs below get one lump-sum payroll expense.
+    if (back >= 3) t("expense", 3_180_000, d(28), operating, "Salaries", "Monthly payroll");
     t("expense", 320_000, d(1), operating, "Rent", "Studio rent");
     t("expense", between(22_000, 41_000), d(10), operating, "Utilities", "Electricity & internet");
     t("expense", between(60_000, 95_000), d(5), operating, "Software & Subscriptions", "Design & dev tooling");
@@ -150,11 +153,11 @@ async function main() {
   const dept = (n: string) => depts.find((x: { name: string }) => x.name === n)!.id as string;
   const people = await must(
     admin.from("employees").insert([
-      { org_id: orgId, name: "Priya Nair", position_title: "Design Lead", department_id: dept("Design"), default_amount: "5200.00" },
-      { org_id: orgId, name: "Marcus Lee", position_title: "Senior Engineer", department_id: dept("Engineering"), default_amount: "6100.00" },
-      { org_id: orgId, name: "Sofia Alvarez", position_title: "Engineer", department_id: dept("Engineering"), default_amount: "4800.00" },
-      { org_id: orgId, name: "Tom Becker", position_title: "Project Manager", department_id: dept("Operations"), default_amount: "4300.00" },
-      { org_id: orgId, name: "Hana Ito", position_title: "Designer", department_id: dept("Design"), default_amount: "3900.00" },
+      { org_id: orgId, name: "Priya Nair", position_title: "Design Lead", department_id: dept("Design"), default_amount: "5200.00", is_owner_pay: false },
+      { org_id: orgId, name: "Marcus Lee", position_title: "Senior Engineer", department_id: dept("Engineering"), default_amount: "6100.00", is_owner_pay: false },
+      { org_id: orgId, name: "Sofia Alvarez", position_title: "Engineer", department_id: dept("Engineering"), default_amount: "4800.00", is_owner_pay: false },
+      { org_id: orgId, name: "Tom Becker", position_title: "Project Manager", department_id: dept("Operations"), default_amount: "4300.00", is_owner_pay: false },
+      { org_id: orgId, name: "Hana Ito", position_title: "Designer", department_id: dept("Design"), default_amount: "3900.00", is_owner_pay: false },
       { org_id: orgId, name: "Olivia Owner", position_title: "Founder", department_id: dept("Operations"), default_amount: "7500.00", is_owner_pay: true },
     ]).select("id, name, default_amount"),
     "employees",

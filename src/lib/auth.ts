@@ -19,10 +19,14 @@ export const getUser = cache(async () => {
 });
 
 export const listMemberships = cache(async () => {
+  const user = await getUser();
+  if (!user) return [];
   const supabase = await createClient();
+  // RLS lets members see their whole org's roster, so the user filter is required here.
   const { data } = await supabase
     .from("memberships")
     .select("role, organizations(id, name, slug, currency)")
+    .eq("user_id", user.id)
     .order("created_at");
   return (data ?? []).map((m) => ({ role: m.role as Role, org: m.organizations as unknown as OrgContext["org"] }));
 });
