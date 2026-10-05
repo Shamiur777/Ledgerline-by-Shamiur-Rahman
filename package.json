@@ -12,7 +12,9 @@
     "test:db": "supabase test db",
     "seed:demo": "tsx scripts/seed-demo.ts",
     "e2e": "playwright test",
-    "screenshots": "tsx scripts/screenshots.ts"
+    "screenshots": "tsx scripts/screenshots.ts",
+    "demo:reset": "tsx scripts/seed-demo.ts --public --reset --prune-anonymous",
+    "scan:secrets": "node scripts/scan-secrets.mjs"
   },
   "dependencies": {
     "@react-pdf/renderer": "^4.9.0",

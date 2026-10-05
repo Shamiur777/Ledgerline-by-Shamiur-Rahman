@@ -9,11 +9,13 @@ type Props = {
   mode: "login" | "signup";
   action: (s: AuthState, f: FormData) => Promise<AuthState>;
   next?: string;
+  /** Hide the "Create an account" link when sign-ups are closed. */
+  showSignupLink?: boolean;
 };
 
 const withNext = (path: string, next?: string) => (next ? `${path}?next=${encodeURIComponent(next)}` : path);
 
-export function AuthForm({ mode, action, next }: Props) {
+export function AuthForm({ mode, action, next, showSignupLink = true }: Props) {
   const [state, formAction, pending] = useActionState(action, undefined);
   const isLogin = mode === "login";
   return (
@@ -35,7 +37,7 @@ export function AuthForm({ mode, action, next }: Props) {
         {pending ? "Please wait…" : isLogin ? "Sign in" : "Create account"}
       </Button>
       <p className="text-center text-sm text-muted">
-        {isLogin ? (
+        {isLogin && !showSignupLink ? null : isLogin ? (
           <>New here? <Link href={withNext("/signup", next)} className="font-medium text-brand underline">Create an account</Link></>
         ) : (
           <>Already have an account? <Link href={withNext("/login", next)} className="font-medium text-brand underline">Sign in</Link></>

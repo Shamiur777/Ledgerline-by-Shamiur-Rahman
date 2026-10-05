@@ -1,19 +1,25 @@
 /**
  * Seeds a fictional company ("Northwind Studio") with 12 months of realistic, deterministic data.
  *
- *   npm run seed:demo            # create if missing
- *   npm run seed:demo -- --reset # delete and recreate
+ *   npm run seed:demo                       # create if missing (local)
+ *   npm run seed:demo -- --reset            # delete and recreate
+ *   npm run seed:demo -- --public           # hosted/public: random, unprinted passwords, no known logins
+ *   npm run seed:demo -- --prune-anonymous  # also delete throwaway visitor identities older than 24h
+ *   npm run demo:reset                      # = --public --reset --prune-anonymous
+ *
+ * Against a non-local Supabase URL, --reset additionally needs --confirm-remote (it deletes data).
  *
  * Needs NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY
- * (loaded from .env.local). Uses the service role only for fixtures; the org itself is created
+ * (from .env.local, or the file named in ENV_FILE). Uses the service role only for fixtures; the org itself is created
  * through the same create_organization() function real users call.
  */
 import { createClient, type SupabaseClient } from "@supabase/supabase-js";
+import { randomBytes } from "node:crypto";
 import { readFileSync } from "node:fs";
 
-// Minimal .env.local loader (avoids a dependency).
+// Minimal env-file loader (avoids a dependency). ENV_FILE=.env.hosted points the script at another project.
 try {
-  for (const line of readFileSync(".env.local", "utf8").split(/\r?\n/)) {
+  for (const line of readFileSync(process.env.ENV_FILE ?? ".env.local", "utf8").split(/\r?\n/)) {
     const m = line.match(/^\s*([A-Z0-9_]+)\s*=\s*(.*)\s*$/);
     if (m && !process.env[m[1]]) process.env[m[1]] = m[2].replace(/^["']|["']$/g, "");
   }
@@ -24,14 +30,25 @@ const ANON = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const SERVICE = process.env.SUPABASE_SERVICE_ROLE_KEY!;
 if (!URL || !ANON || !SERVICE) throw new Error("Set NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY and SUPABASE_SERVICE_ROLE_KEY in .env.local");
 
+const args = new Set(process.argv.slice(2));
+const PUBLIC = args.has("--public");
+const IS_LOCAL = /^https?:\/\/(127\.0\.0\.1|localhost)([:/]|$)/.test(URL);
+if (!IS_LOCAL && args.has("--reset") && !args.has("--confirm-remote")) {
+  throw new Error(`Refusing to --reset a non-local database (${new globalThis.URL(URL).host}). Re-run with --confirm-remote if that is intended.`);
+}
+
 const SLUG = "northwind-studio";
-const PASSWORD = "ledgerline-demo"; // fixture password for fictional local/demo accounts only
-const USERS = [
+// Local fixture password for fictional accounts. In --public mode every password is random, used once
+// in-process to create the company, and never printed or stored, so no known credential exists.
+const FIXTURE_PASSWORD = "ledgerline-demo";
+const USERS_ALL = [
   { key: "owner", email: "owner@ledgerline.dev", name: "Olivia Owner", role: "owner" },
   { key: "approver", email: "approver@ledgerline.dev", name: "Amir Approver", role: "approver" },
   { key: "accountant", email: "accountant@ledgerline.dev", name: "Casey Accountant", role: "accountant" },
   { key: "demo", email: "demo@ledgerline.dev", name: "Demo Viewer (read-only)", role: "viewer" },
 ] as const;
+const USERS = PUBLIC ? USERS_ALL.filter((u) => u.key !== "demo") : USERS_ALL; // visitors use anonymous sign-in
+const PASSWORDS: Record<string, string> = Object.fromEntries(USERS.map((u) => [u.key, PUBLIC ? randomBytes(24).toString("base64url") : FIXTURE_PASSWORD]));
 
 // Deterministic PRNG so the dataset is identical on every run.
 function mulberry32(seed: number) {
@@ -62,21 +79,42 @@ async function must<T>(p: PromiseLike<{ data: T; error: { message: string } | nu
 
 async function ensureUser(u: (typeof USERS)[number]): Promise<string> {
   const { data, error } = await admin.auth.admin.createUser({
-    email: u.email, password: PASSWORD, email_confirm: true, user_metadata: { full_name: u.name },
+    email: u.email, password: PASSWORDS[u.key], email_confirm: true, user_metadata: { full_name: u.name },
   });
   if (!error) return data.user.id;
-  // Already exists: find it.
-  for (let page = 1; page < 20; page++) {
+  // Already exists: find it and set this run's password (so re-seeding always leaves known/unknown state consistent).
+  for (let page = 1; page < 50; page++) {
     const { data: list } = await admin.auth.admin.listUsers({ page, perPage: 200 });
     const hit = list?.users.find((x) => x.email === u.email);
-    if (hit) return hit.id;
+    if (hit) {
+      await admin.auth.admin.updateUserById(hit.id, { password: PASSWORDS[u.key] });
+      return hit.id;
+    }
     if (!list?.users.length) break;
   }
   throw new Error(`Could not create or find ${u.email}: ${error.message}`);
 }
 
+/** Visitors sign in anonymously; remove identities older than 24h so the user table stays small. */
+async function pruneAnonymous(): Promise<number> {
+  const cutoff = Date.now() - 24 * 3600 * 1000;
+  let removed = 0;
+  for (let page = 1; page < 200; page++) {
+    const { data: list } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+    if (!list?.users.length) break;
+    for (const u of list.users) {
+      if (u.is_anonymous && new Date(u.created_at).getTime() < cutoff) {
+        await admin.auth.admin.deleteUser(u.id);
+        removed++;
+      }
+    }
+  }
+  return removed;
+}
+
 async function main() {
-  const reset = process.argv.includes("--reset");
+  const reset = args.has("--reset");
+  if (args.has("--prune-anonymous")) console.log(`Pruned ${await pruneAnonymous()} old anonymous visitor identities.`);
   const ids: Record<string, string> = {};
   for (const u of USERS) ids[u.key] = await ensureUser(u);
 
@@ -92,10 +130,10 @@ async function main() {
 
   // Create the org exactly as a real user would: signed in, through the RPC.
   const owner: SupabaseClient = createClient(URL, ANON, { auth: { persistSession: false } });
-  await must(owner.auth.signInWithPassword({ email: USERS[0].email, password: PASSWORD }).then((r) => ({ data: r.data, error: r.error })), "owner sign-in");
+  await must(owner.auth.signInWithPassword({ email: USERS[0].email, password: PASSWORDS.owner }).then((r) => ({ data: r.data, error: r.error })), "owner sign-in");
   const orgId = (await must(owner.rpc("create_organization", { p_name: "Northwind Studio", p_currency: "USD", p_fy_start: 1, p_starter: true }), "create_organization")) as string;
   // create_organization generates the slug from the name, which yields exactly SLUG.
-  await must(admin.from("organizations").update({ slug: SLUG, require_approval: true }).eq("id", orgId), "org settings");
+  await must(admin.from("organizations").update({ slug: SLUG, require_approval: true, is_demo: true }).eq("id", orgId), "org settings");
 
   for (const u of USERS.slice(1)) await must(admin.from("memberships").insert({ org_id: orgId, user_id: ids[u.key], role: u.role }), `member ${u.key}`);
 
@@ -206,7 +244,13 @@ async function main() {
 }
 
 function printLogins() {
-  console.log(`\nSign in at /login — password for all demo users: ${PASSWORD}`);
+  if (PUBLIC) {
+    console.log(`
+Public demo ready at /${SLUG}/dashboard. Visitors use the "Try the demo" button; no passwords exist to share.`);
+    return;
+  }
+  console.log(`
+Sign in at /login. Password for all local demo users: ${FIXTURE_PASSWORD}`);
   for (const u of USERS) console.log(`  ${u.role.padEnd(10)} ${u.email}`);
   console.log(`Company URL: /${SLUG}/dashboard`);
 }

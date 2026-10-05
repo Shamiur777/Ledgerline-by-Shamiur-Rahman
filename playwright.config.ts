@@ -6,6 +6,8 @@ const channel = process.env.E2E_CHANNEL === undefined ? "msedge" : process.env.E
 
 export default defineConfig({
   testDir: "tests/e2e",
+  // smoke.spec needs seeded fixture logins and open sign-up, which a public deployment deliberately lacks.
+  testIgnore: process.env.E2E_BASE_URL ? /smoke\.spec/ : undefined,
   fullyParallel: false,
   retries: process.env.CI ? 1 : 0,
   reporter: [["list"]],

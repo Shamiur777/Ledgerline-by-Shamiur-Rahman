@@ -56,9 +56,9 @@ Design choices worth calling out:
 
 | Layer | What | Count |
 |---|---|---|
-| Database (pgTAP) | Tenant isolation across every table, role ladder, cross-tenant references, audit immutability, approvals, four-eyes, overpayment (insert/update/restore), soft-delete balances, transfers, payroll, invitations (wrong email, replay, expiry, forgery), reserved URL slugs | **77 assertions** |
+| Database (pgTAP) | Tenant isolation across every table, role ladder, cross-tenant references, audit immutability, approvals, four-eyes, overpayment (insert/update/restore), soft-delete balances, transfers, payroll, invitations (wrong email, replay, expiry, forgery), reserved URL slugs, public-demo isolation and abuse limits | **96 assertions** |
 | Unit (Vitest) | Money math, fiscal-year ranges, report builders, CSV parser/validator, CSV-injection guard, open-redirect guard, real Excel + PDF generation | **39 tests** |
-| End-to-end (Playwright) | Sign up → onboard → record transaction → see it on dashboard → export; second tenant gets 404s; read-only viewer is bounced from write/admin routes; a brand-new person joins via an invite link, once | **3 flows** |
+| End-to-end (Playwright) | Sign up → onboard → record transaction → see it on dashboard → export; second tenant gets 404s; read-only viewer is bounced from write/admin routes; a brand-new person joins via an invite link, once; the one-click demo is read-only, error-free and has no horizontal scroll on a phone | **5 flows** |
 
 CI (`.github/workflows/ci.yml`) runs all of it, including a real local Supabase, on every push.
 
@@ -83,8 +83,27 @@ npm test                 # unit tests
 npm run test:db          # pgTAP: RLS + business rules
 npm run e2e              # Playwright (uses installed Edge locally; Chromium in CI)
 npm run seed:demo -- --reset   # rebuild the demo company
+npm run scan:secrets     # fail if any credential is tracked or in git history
 npm run screenshots      # regenerate README images
 ```
+
+## Deploying
+
+A free public demo runs on **Supabase** (Postgres + Auth) and **Vercel**. Step-by-step instructions, including every click, are in **[DEPLOY.md](DEPLOY.md)**.
+
+Visitors click **Try the demo** and get their own throwaway, read-only identity (Supabase anonymous sign-in joined to the demo company by a database function), so there is no shared login to hijack. Sign-ups are closed on the hosted project, and the public API is limited by Row-Level Security, per-account company caps and Supabase's rate limits.
+
+Environment variables (names only; never commit values):
+
+| Name | Where | Secret? |
+|---|---|---|
+| `NEXT_PUBLIC_SUPABASE_URL` | Vercel, local | no |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Vercel, local | no (public by design; RLS is the protection) |
+| `SIGNUPS_ENABLED` (`false` to close sign-up) | Vercel | no |
+| `DEMO_ENABLED` (`false` to hide the demo button) | Vercel | no |
+| `SUPABASE_SERVICE_ROLE_KEY` | **local `.env.hosted` only**, used by the seed script | **yes, never on Vercel, never in git** |
+
+`npm run scan:secrets` (also run in CI) fails the build if a credential appears in tracked files or in any commit.
 
 ## What I generalized from the original
 

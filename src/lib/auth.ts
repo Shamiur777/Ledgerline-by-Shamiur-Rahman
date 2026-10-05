@@ -7,7 +7,7 @@ export const ROLE_RANK: Record<Role, number> = { viewer: 1, accountant: 2, appro
 export const can = (role: Role, min: Role) => ROLE_RANK[role] >= ROLE_RANK[min];
 
 export type OrgContext = {
-  org: { id: string; name: string; slug: string; currency: string; fiscal_year_start_month: number; require_approval: boolean };
+  org: { id: string; name: string; slug: string; currency: string; fiscal_year_start_month: number; require_approval: boolean; is_demo: boolean };
   role: Role;
   userId: string;
 };
@@ -38,7 +38,7 @@ export const getOrgContext = cache(async (slug: string): Promise<OrgContext> => 
   const supabase = await createClient();
   const { data } = await supabase
     .from("memberships")
-    .select("role, organizations!inner(id, name, slug, currency, fiscal_year_start_month, require_approval)")
+    .select("role, organizations!inner(id, name, slug, currency, fiscal_year_start_month, require_approval, is_demo)")
     .eq("organizations.slug", slug)
     .eq("user_id", user.id)
     .maybeSingle();

@@ -78,7 +78,15 @@ export default async function OrgLayout({
           </form>
         </div>
       </aside>
-      <main className="min-w-0 flex-1 p-4 md:p-8">{children}</main>
+      <main className="min-w-0 flex-1 p-4 md:p-8">
+        {ctx.org.is_demo && (
+          <div role="note" className="mb-6 rounded-lg border border-warn/40 bg-warn/10 px-4 py-2.5 text-sm text-warn">
+            <strong>Read-only demo.</strong> Everything here is fictional sample data for a made-up company. You can look
+            around but not change anything.
+          </div>
+        )}
+        {children}
+      </main>
     </div>
   );
 }

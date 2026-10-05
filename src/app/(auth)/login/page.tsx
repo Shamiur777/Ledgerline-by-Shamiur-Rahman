@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import { AuthForm } from "@/components/auth-form";
-import { login } from "../actions";
+import { DemoButton } from "@/components/demo-button";
+import { demoEnabled, signupsEnabled } from "@/lib/flags";
+import { demoLogin, login } from "../actions";
 
 export const metadata: Metadata = { title: "Sign in" };
 
@@ -9,7 +11,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <>
       <h1 className="mb-4 text-lg font-semibold">Sign in</h1>
-      <AuthForm mode="login" action={login} next={next} />
+      <AuthForm mode="login" action={login} next={next} showSignupLink={signupsEnabled()} />
+      {demoEnabled() && <DemoButton action={demoLogin} />}
     </>
   );
 }

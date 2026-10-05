@@ -2,6 +2,7 @@
 
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { demoEnabled, signupsEnabled } from "@/lib/flags";
 import { safeRedirect } from "@/lib/redirect";
 import { createClient } from "@/lib/supabase/server";
 
@@ -23,7 +24,22 @@ export async function login(_: AuthState, form: FormData): Promise<AuthState> {
   redirect(safeNext(form.get("next")));
 }
 
+/**
+ * One-click demo. Each visitor gets their own throwaway anonymous identity (so there is no shared
+ * login to hijack) and is joined to the demo company as a read-only viewer by a database function.
+ */
+export async function demoLogin(): Promise<AuthState> {
+  if (!demoEnabled()) return { error: "The demo is not available." };
+  const supabase = await createClient();
+  const { error: authError } = await supabase.auth.signInAnonymously();
+  if (authError) return { error: "Couldn't start the demo right now. Please try again in a minute." };
+  const { data: slug, error } = await supabase.rpc("join_demo");
+  if (error || !slug) return { error: "The demo company isn't set up yet." };
+  redirect(`/${slug}/dashboard`);
+}
+
 export async function signup(_: AuthState, form: FormData): Promise<AuthState> {
+  if (!signupsEnabled()) return { error: "Sign-ups are closed on this deployment. Try the demo instead." };
   const parsed = credentials
     .extend({ full_name: z.string().trim().min(2, "Enter your name").max(100) })
     .safeParse({ email: form.get("email"), password: form.get("password"), full_name: form.get("full_name") });
