@@ -1,0 +1,63 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  app:
+    name: Lint, typecheck, unit tests, build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+        env:
+          # The build only needs the variables to exist; no network calls are made at build time.
+          NEXT_PUBLIC_SUPABASE_URL: http://127.0.0.1:54321
+          NEXT_PUBLIC_SUPABASE_ANON_KEY: build-placeholder
+
+  database:
+    name: Database tests and end-to-end
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+      - run: npm ci
+      - uses: supabase/setup-cli@v1
+        with:
+          version: latest
+      - name: Start local Supabase
+        run: supabase start -x studio,imgproxy,vector,logflare,edge-runtime
+      - name: pgTAP — tenant isolation and business rules
+        run: supabase test db
+      - name: Write env for the app
+        run: |
+          supabase status -o env | node -e '
+            const fs = require("fs"); const e = {};
+            for (const l of fs.readFileSync(0, "utf8").split(/\r?\n/)) { const m = l.match(/^([A-Z_]+)="?(.*?)"?$/); if (m) e[m[1]] = m[2]; }
+            fs.writeFileSync(".env.local", `NEXT_PUBLIC_SUPABASE_URL=${e.API_URL}\nNEXT_PUBLIC_SUPABASE_ANON_KEY=${e.ANON_KEY}\nSUPABASE_SERVICE_ROLE_KEY=${e.SERVICE_ROLE_KEY}\n`);'
+      - name: Seed demo company
+        run: npm run seed:demo
+      - name: Install browser
+        run: npx playwright install --with-deps chromium
+      - name: End-to-end
+        run: npx playwright test
+        env:
+          E2E_CHANNEL: ""
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-traces
+          path: test-results/

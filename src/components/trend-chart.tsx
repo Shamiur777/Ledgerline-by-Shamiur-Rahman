@@ -21,8 +21,8 @@ export function TrendChart({ data, currency }: { data: TrendPoint[]; currency: s
           <YAxis tickFormatter={fmt} tickLine={false} axisLine={false} fontSize={12} width={60} />
           <Tooltip formatter={(v) => full(Number(v))} cursor={{ fill: "rgba(15,92,74,0.06)" }} />
           <Legend />
-          <Bar dataKey="income" name="Income" fill={INCOME} radius={[3, 3, 0, 0]} />
-          <Bar dataKey="expense" name="Expense" fill={EXPENSE} radius={[3, 3, 0, 0]} />
+          <Bar dataKey="income" name="Income" fill={INCOME} radius={[3, 3, 0, 0]} isAnimationActive={false} />
+          <Bar dataKey="expense" name="Expense" fill={EXPENSE} radius={[3, 3, 0, 0]} isAnimationActive={false} />
         </BarChart>
       </ResponsiveContainer>
     </div>

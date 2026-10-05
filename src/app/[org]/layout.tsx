@@ -63,6 +63,10 @@ export default async function OrgLayout({
           ) : (
             <div className="hidden text-sm text-muted md:mt-1 md:block">{ctx.org.name}</div>
           )}
+          {/* The sidebar footer is desktop-only; phones get sign-out in the header. */}
+          <form action={signOut} className="md:hidden">
+            <button className="text-xs text-muted underline">Sign out</button>
+          </form>
         </div>
         <SideNav slug={slug} items={items} />
         <div className="hidden border-t border-line p-4 text-xs text-muted md:block">
