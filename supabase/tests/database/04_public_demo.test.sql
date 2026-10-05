@@ -2,6 +2,10 @@ begin;
 create extension if not exists pgtap;
 select * from no_plan();
 
+-- Hermetic: a developer database may already hold a seeded demo company. Clear the flag inside this
+-- (rolled-back) transaction so the test controls the demo state.
+update organizations set is_demo = false;
+
 insert into auth.users (id, email, aud, role, raw_user_meta_data, instance_id) values
   ('00000000-0000-0000-0000-0000000000a4', 'alice@demo.dev', 'authenticated', 'authenticated', '{}', '00000000-0000-0000-0000-000000000000'),
   ('00000000-0000-0000-0000-0000000000f4', null, 'authenticated', 'authenticated', '{}', '00000000-0000-0000-0000-000000000000');
