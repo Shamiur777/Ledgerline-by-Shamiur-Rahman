@@ -1,0 +1,47 @@
+"use server";
+
+import { redirect } from "next/navigation";
+import { z } from "zod";
+import { createClient } from "@/lib/supabase/server";
+
+export type AuthState = { error?: string } | undefined;
+
+const credentials = z.object({
+  email: z.string().trim().toLowerCase().pipe(z.email("Enter a valid email address")),
+  password: z.string().min(8, "Password must be at least 8 characters"),
+});
+
+// Only allow same-site relative redirects after login (prevents open-redirect abuse).
+const safeNext = (next: FormDataEntryValue | null) =>
+  typeof next === "string" && next.startsWith("/") && !next.startsWith("//") ? next : "/dashboard";
+
+export async function login(_: AuthState, form: FormData): Promise<AuthState> {
+  const parsed = credentials.safeParse({ email: form.get("email"), password: form.get("password") });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const supabase = await createClient();
+  const { error } = await supabase.auth.signInWithPassword(parsed.data);
+  if (error) return { error: "Incorrect email or password." };
+  redirect(safeNext(form.get("next")));
+}
+
+export async function signup(_: AuthState, form: FormData): Promise<AuthState> {
+  const parsed = credentials
+    .extend({ full_name: z.string().trim().min(2, "Enter your name").max(100) })
+    .safeParse({ email: form.get("email"), password: form.get("password"), full_name: form.get("full_name") });
+  if (!parsed.success) return { error: parsed.error.issues[0].message };
+  const supabase = await createClient();
+  const { data, error } = await supabase.auth.signUp({
+    email: parsed.data.email,
+    password: parsed.data.password,
+    options: { data: { full_name: parsed.data.full_name } },
+  });
+  if (error) return { error: error.message };
+  if (!data.session) return { error: "Check your inbox to confirm your email, then sign in." };
+  redirect("/onboarding");
+}
+
+export async function signOut() {
+  const supabase = await createClient();
+  await supabase.auth.signOut();
+  redirect("/login");
+}
