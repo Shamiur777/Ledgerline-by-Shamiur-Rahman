@@ -186,7 +186,8 @@ create index pending_payments_org_status_idx on pending_payments(org_id, status)
 
 create table audit_log (
   id bigint generated always as identity primary key,
-  org_id uuid references organizations(id) on delete cascade,
+  -- Deliberately no FK to organizations: audit history must survive (and never block) org deletion.
+  org_id uuid,
   user_id uuid,
   action text not null,
   entity text not null,

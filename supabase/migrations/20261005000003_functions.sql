@@ -18,7 +18,7 @@ begin
   if v_base = '' then v_base := 'org'; end if;
   v_slug := v_base;
   while exists (select 1 from organizations where slug = v_slug) loop
-    v_slug := v_base || '-' || substr(encode(gen_random_bytes(3), 'hex'), 1, 5);
+    v_slug := v_base || '-' || substr(replace(gen_random_uuid()::text, '-', ''), 1, 5);
   end loop;
 
   insert into organizations(name, slug, currency, fiscal_year_start_month, created_by)

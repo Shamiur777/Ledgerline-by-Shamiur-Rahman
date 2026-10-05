@@ -28,6 +28,9 @@ select pg_temp.login('00000000-0000-0000-0000-00000000000a');
 select add_member_by_email((select v from ids where k = 'orgA'), 'cara@test.dev', 'viewer');
 select add_member_by_email((select v from ids where k = 'orgA'), 'dan@test.dev', 'accountant');
 
+-- Alice's account id: an attacker could learn or guess a UUID, so the cross-tenant test uses a known one.
+insert into ids select 'accA', id from bank_accounts where org_id = (select v from ids where k = 'orgA') limit 1;
+
 -- Alice records a transaction in A.
 insert into transactions(org_id, kind, amount, bank_account_id, category_id, description)
 select o.v, 'income', 100, (select id from bank_accounts where org_id = o.v limit 1),
@@ -55,9 +58,9 @@ select is((select amount from transactions where description = 'secret-A'), 100.
 select pg_temp.login('00000000-0000-0000-0000-00000000000b');
 select throws_ok(
   $$insert into transactions(org_id, kind, amount, bank_account_id, category_id)
-    select b.v, 'income', 1, (select id from bank_accounts where org_id = a.v limit 1),
-           (select id from categories where org_id = b.v limit 1)
-    from ids a, ids b where a.k = 'orgA' and b.k = 'orgB'$$,
+    select b.v, 'income', 1, (select v from ids where k = 'accA'),
+           (select id from categories where org_id = b.v and kind = 'income' limit 1)
+    from ids b where b.k = 'orgB'$$,
   '42501', null, 'cannot reference another tenant''s bank account');
 
 -- 8-11: role ladder inside org A.
